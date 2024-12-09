@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2021 emijrp <emijrp@gmail.com>
+# Copyright (C) 2021-2023 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -39,22 +39,24 @@ def main():
     targetlangs.sort()
     if method == 'all' or method == 'method1':
         #method 1
-        for i in range(1000):
+        for i in range(10000):
+            random.shuffle(targetlangs)
             skip = ''
             query = """
             SELECT DISTINCT ?item
             WHERE {
                 SERVICE bd:sample {
                     ?item wdt:P31 wd:Q16521 .
-                    bd:serviceParam bd:sample.limit 1000 .
+                    bd:serviceParam bd:sample.limit 10000 .
                     bd:serviceParam bd:sample.sampleType "RANDOM" .
                 }
                 ?item wdt:P225 ?taxonname.
-                OPTIONAL { ?item rdfs:label ?label filter(lang(?label) = "ext") }
+                OPTIONAL { ?item rdfs:label ?label filter(lang(?label) = "%s") }
                 FILTER(!BOUND(?label))
                 SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
             }
-            """
+            #random%s
+            """ % (targetlangs[0], random.randint(1,1000000))
             
             url = 'https://query.wikidata.org/bigdata/namespace/wdq/sparql?query=%s' % (urllib.parse.quote(query))
             url = '%s&format=json' % (url)

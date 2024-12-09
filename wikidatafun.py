@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2017 emijrp <emijrp@gmail.com>
+# Copyright (C) 2017-2022 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
 import json
 import os
 import re
@@ -25,27 +26,133 @@ import unicodedata
 import urllib
 import urllib.request
 import urllib.parse
+import pywikibot
+
+def cronstop():
+    return
+    if datetime.datetime.now().isoweekday() in [1, 2, 3, 4, 5]: #1 Monday
+        if datetime.datetime.now().hour > 4 and datetime.datetime.now().hour < 18:
+            sys.exit()
+
+def isArtwork(text=""):
+    if not text:
+        return False
+    if re.search(r"(?im)(artwork|painting|statue|coin|numism|Google Art Project|PD[- ]Art)", text):
+        return True
+    return False
+
+def myBotWasReverted(page='', botnick="Emijrpbot"):
+    if not page or not botnick:
+        return False
+    hist = page.revisions(reverse=False, total=50)
+    for rev in hist:
+        #print(rev)
+        if re.search(r"(?im)(revert|rv).*%s" % (botnick), rev["comment"]):
+            return True
+    return False
+
+def addClaimsToCommonsFile(site, mid, claims, overwritecomment="", comments=[], q=""):
+    if not overwritecomment and not comments and not q:
+        return 
+    #https://www.wikidata.org/w/api.php?action=help&modules=wbcreateclaim
+    csrf_token = site.tokens['csrf']
+    data = '{"claims":[%s]}' % (",".join(claims))
+    comments.sort()
+    summary = "BOT - Adding [[Commons:Structured data|structured data]]"
+    if overwritecomment:
+        summary = overwritecomment
+    elif comments and q:
+        summary = "BOT - Adding [[Commons:Structured data|structured data]] based on Wikidata item [[:d:%s|%s]]: %s" % (q, q, ", ".join(comments))
+    elif comments and not q:
+        summary = "BOT - Adding [[Commons:Structured data|structured data]] based on file information: %s" % (", ".join(comments))
+    elif not comments and q:
+        summary = "BOT - Adding [[Commons:Structured data|structured data]] based on Wikidata item [[:d:%s|%s]]" % (q, q)
+    else:
+        summary = "BOT - Adding [[Commons:Structured data|structured data]]"
+    payload = {
+      'action' : 'wbeditentity',
+      'format' : 'json',
+      'id' : mid,
+      'data' : data,
+      'token' : csrf_token,
+      'bot' : True, 
+      'summary': summary,
+      'tags': 'BotSDC',
+    }
+    request = site.simple_request(**payload)
+    try:
+      r = request.submit()
+    except:
+      print("ERROR while saving")
+
+def addP180Claim(site="", mid="", q="", rank="", overwritecomment=""):
+    if not site or not mid or not q or not rank or not overwritecomment:
+        return
+    
+    claims = getClaimsFromCommonsFile(site=site, mid=mid)
+    if not claims:
+        print("Error al recuperar claims, saltamos")
+        return
+    elif claims and "claims" in claims and claims["claims"] == { }:
+        print("No tiene claims, no inicializado, inicializamos")
+    
+    if "claims" in claims:
+        if "P180" in claims["claims"]: #p180 depicts
+            for p180 in claims["claims"]["P180"]:
+                if p180["mainsnak"]["datavalue"]["value"]["id"] == q:
+                    print("--> Ya tiene claim depicts, saltamos", q)
+                    return
+        print("--> No se encontro claim, anadimos", q)
+        if "P180" in claims["claims"]:
+            print("###########Tiene otros P180")
+        claimstoadd = []
+        depictsclaim = """{ "mainsnak": { "snaktype": "value", "property": "P180", "datavalue": {"value": {"entity-type": "item", "numeric-id": "%s", "id": "%s"}, "type":"wikibase-entityid"} }, "type": "statement", "rank": "%s" }""" % (q[1:], q, rank)
+        claimstoadd.append(depictsclaim)
+        
+        if claimstoadd and overwritecomment:
+            addClaimsToCommonsFile(site=site, mid=mid, claims=claimstoadd, overwritecomment=overwritecomment)
+        else:
+            print("No se encontraron claims para anadir")
+            return
+
+def getClaimsFromCommonsFile(site, mid):
+    payload = {
+      'action' : 'wbgetclaims',
+      'format' : 'json',
+      'entity' : mid,
+    }
+    request = site.simple_request(**payload)
+    try:
+        r = request.submit()
+        #return json.loads(r)
+        return r
+    except pywikibot.exceptions.APIError as e:
+        if e.code == 'no-such-entity':
+            return { "claims": { } }
+    return 
 
 def removeAccents(s):
    return ''.join(c for c in unicodedata.normalize('NFD', s)
                   if unicodedata.category(c) != 'Mn')
 
-def getURL(url='', retry=True, timeout=30):
+def getURL(url='', retry=False, timeout=30):
     raw = ''
-    req = urllib.request.Request(url, headers={ 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:55.0) Gecko/20100101 Firefox/55.0' })
+    version = 110
+    req = urllib.request.Request(url, headers={ 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/%d.0' % (version) })
     try:
         raw = urllib.request.urlopen(req, timeout=timeout).read().strip().decode('utf-8')
     except:
         sleep = 10 # seconds
-        maxsleep = 900
+        maxsleep = 60
         while retry and sleep <= maxsleep:
             print('Error while retrieving: %s' % (url))
             print('Retry in %s seconds...' % (sleep))
             time.sleep(sleep)
             try:
+                req = urllib.request.Request(url, headers={ 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/%d.0' % (version) })
                 raw = urllib.request.urlopen(req, timeout=timeout).read().strip().decode('utf-8')
             except:
-                pass
+                version += 1
             sleep = sleep * 2
     return raw
 

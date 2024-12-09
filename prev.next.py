@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2019 emijrp <emijrp@gmail.com>
+# Copyright (C) 2019-2023 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -21,7 +21,6 @@ import sys
 import time
 import urllib.parse
 
-import pwb
 import pywikibot
 from pywikibot import pagegenerators
 from wikidatafun import *
@@ -149,11 +148,19 @@ def main():
     if method == 'all' or method == 'method2':
         #cat = pywikibot.Category(wikisite, 'Category:Year by category — used with year parameter(s) equals year in page title')
         #cat = pywikibot.Category(wikisite, 'Category:YearParamUsageCheck tracking categories')
-        cat = pywikibot.Category(wikisite, 'Category:Categories by year')
-        #gen = pagegenerators.SubCategoriesPageGenerator(cat)
-        gen = pagegenerators.SubCategoriesPageGenerator(cat, recurse=5)
+        #cat = pywikibot.Category(wikisite, 'Category:Categories by year')
+        cat = pywikibot.Category(wikisite, 'Category:Navseasoncats year and decade')
+        #gen = pagegenerators.SubCategoriesPageGenerator(cat, recurse=5)
+        gen = pagegenerators.SubCategoriesPageGenerator(cat)
+        skip = ''
         for page in gen:
             print('\n==', page.title().encode('utf-8'), '==')
+            if False and skip: #este skip no funciona bien, va lento no se pq, creo q cuando es cat recurse
+                if page.title() == skip:
+                    skip = ''
+                else:
+                    print("Skiping...")
+                    continue
             year = ''
             titleprev = ''
             titlenext = ''
@@ -186,6 +193,8 @@ def main():
             else:
                 print("Page doest have item")
     
+    
+    sys.exit()
     if method == 'all' or method == 'method3':
         for year in range(1000, 2050):
             prefix = '%s in ' % (year)

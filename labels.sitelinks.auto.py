@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2022 emijrp <emijrp@gmail.com>
+# Copyright (C) 2022-2024 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -22,17 +22,29 @@ import sys
 import time
 import urllib.parse
 
-import pwb
 import pywikibot
 from wikidatafun import *
 
 def main():
+    
+    
+    
+    
+    sys.exit() #slowing down for a while because wikidata database issues
+    
+    
+    
+    
     site = pywikibot.Site('wikidata', 'wikidata')
     repo = site.data_repository()
-    langs = ["de", "en", "es", "fr", "pt"]
+    langs = ["de", "en", "es", "fr", "pt", "it"]
+    langs += ["an", "ast", "ca", "ext", "eu", "gl", "nl", "oc", "ro", "sv"]
+    langs += ["eo", "io", "ia", "ie", "vo", "la"]
+    langs = list(set(langs))
     random.shuffle(langs)
-    for i in range(1000):
+    for i in range(100000):
         for lang in langs:
+            time.sleep(1)
             query1 = """
         SELECT DISTINCT ?item
         WHERE {
@@ -49,7 +61,7 @@ def main():
             OPTIONAL { ?item rdfs:label ?label filter(lang(?label) = "%s"). }
             FILTER(!BOUND(?label)) .
         }
-        #%s""" % (lang, lang, lang, random.randint(1000000, 9999999))
+        #random%s""" % (lang, lang, lang, random.randint(1000000, 9999999))
             url1 = 'https://query.wikidata.org/bigdata/namespace/wdq/sparql?query=%s' % (urllib.parse.quote(query1))
             url1 = '%s&format=json' % (url1)
             #print("Loading...", url1)
@@ -79,6 +91,10 @@ def main():
                     continue
                 
                 itemlabels = item.labels
+                if "mul" in itemlabels.keys() and labelcandidate == itemlabels["mul"]:
+                    print("Igual que mul:, saltamos")
+                    continue
+                
                 if not lang in itemlabels.keys():
                     itemlabels[lang] = labelcandidate
                     data = { 'labels': itemlabels }

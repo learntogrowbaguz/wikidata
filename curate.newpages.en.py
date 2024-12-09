@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2017-2019 emijrp <emijrp@gmail.com>
+# Copyright (C) 2017-2024 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -200,7 +200,7 @@ def pageReferences(page='', lang=''):
 
 def pageIsBiography(page='', lang=''):
     if lang == 'en':
-        if re.search('(?im)Category\s*:\s*\d+ animal (births|deaths)', page.text):
+        if re.search('(?im)(Category\s*:\s*\d+ animal (births|deaths)|Infobox[ _]animal|Category\s*:\s*Individual|\banimals?\b)', page.text):
             return False
         elif not page.title().startswith('List ') and not page.title().startswith('Lists '):
             if len(page.title().split(' ')) <= 5:
@@ -273,16 +273,26 @@ def qIsDisambig(item=""):
     return False
 
 def main():
+    
+    
+    
+    
+    sys.exit() #slowing down for a while because wikidata database issues
+    
+    
+    
+    
     wdsite = pywikibot.Site('wikidata', 'wikidata')
     repo = wdsite.data_repository()
     total = 200
     #langs = ['en', 'fr', 'de']
     langs = ['en']
     for i in range(1000): # continuous check for new pages, time sleep below
+        cronstop()
         if i == 0:
-            total = 2000 #first pass bigger (full check last day)
+            total = 200 #first pass bigger (full check last day)
         else:
-            total = 200
+            total = 50
         for lang in langs:
             wikisite = pywikibot.Site(lang, 'wikipedia')
             gen = pagegenerators.NewpagesPageGenerator(site=wikisite, namespaces=[0], total=total)
@@ -394,7 +404,7 @@ def main():
                             break
                         addBiographyClaims(repo=repo, wikisite=wikisite, item=newitem, page=page, lang=lang)
         print("Waiting for next run...")
-        time.sleep(60*10)
+        time.sleep(60*3) #3 minutes
 
 if __name__ == "__main__":
     main()

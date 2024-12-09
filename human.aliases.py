@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2021 emijrp <emijrp@gmail.com>
+# Copyright (C) 2021-2024 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -49,9 +49,11 @@ def main():
     categories = {
         #añadido hasta el ido: segun la tabla al 31 de diciembre de 2021
         #'als': ['Category:%s' % (x) for x in ["Dütsche", "Schwiizer"]], el idioma gsw: recae en este? aclarar antes de lanzarlo
+        'af': ['Category:Geboortes in %s' % (year) for year in years], 
         'an': ['Category:%s (naixencias)' % (year) for year in years], 
         'ast': ['Category:Persones nacíes en %s' % (year) for year in years], 
         'bar': ['Category:Geboren %s' % (year) for year in years], 
+        'br': ['Category:Ganedigezhioù %s' % (year) for year in years], 
         'bs': ['Category:Rođeni %s.' % (year) for year in years], 
         'ca': ['Category:Persones vives'], 
         'cs': ['Category:Narození %s' % (year) for year in years], 
@@ -79,20 +81,29 @@ def main():
         'kw': ['Category:Mernansow %s' % (year) for year in years], 
         'la': ['Category:Nati %s' % (year) for year in years], 
         'ms': ['Category:Kelahiran %s' % (year) for year in years], 
+        'mt': ['Category:Twieldu fl-%s' % (year) for year in years], 
         'nds': ['Category:Boren %s' % (year) for year in years], 
+        #nl: no useful cats, deberia hacer esto con sparql sobre Q5 y sacar los iws y filtrar los idiomas interesen...
         'nn': ['Category:Fødde i %s' % (year) for year in years], 
         'no': ['Category:Fødsler i %s' % (year) for year in years], 
         'oc': ['Category:Naissença en %s' % (year) for year in years], 
         'pl': ['Category:Urodzeni w %s' % (year) for year in years], 
         'pt': ['Category:Nascidos em %s' % (year) for year in years], 
+        'qu': ['Category:Paqarisqa %s' % (year) for year in years], 
         'ro': ['Category:Nașteri în %s' % (year) for year in years], 
+        'scn': ['Category:Nasciuti ntô %s' % (year) for year in years], 
+        'sco': ['Category:%s births' % (year) for year in years], 
         'sh': ['Category:Rođeni %s.' % (year) for year in years], 
         'sk': ['Category:Narodenia v %s' % (year) for year in years], 
         'sq': ['Category:Lindje %s' % (year) for year in years], 
+        'su': ['Category:Nu babar taun %s' % (year) for year in years], 
         'sv': ['Category:Födda %s' % (year) for year in years], 
+        'sw': ['Category:Waliozaliwa %s' % (year) for year in years], 
         'tl': ['Category:Ipinanganak noong %s' % (year) for year in years], 
         'tr': ['Category:%s doğumlular' % (year) for year in years], 
         'vi': ['Category:Sinh năm %s' % (year) for year in years], 
+        'yo': ['Category:Àwọn ọjọ́ìbí ní %s' % (year) for year in years], 
+        'zea': ['Category:Historisch persoôn'], 
     }
     langs = list(categories.keys())
     #langs = ['ca', 'da', 'de', 'eu', 'fi', 'it', 'pt', 'sv']
@@ -135,7 +146,8 @@ def main():
                     if re.search(r"\'\'\' ?[\"\']? ?\'\'\'", page.text):
                         print("Lio de ''' en el nombre")
                         continue
-                    m = re.findall(r"(?im)^\'\'\'([A-Za-z \-]+?)\'\'\'", page.text)
+                    #el [a-z] del comienzo es para General, Captain, etc
+                    m = re.findall(r"(?im)^[a-z]{0,10} ?\'\'\'([a-záéíóúàèìòùñ \-]+?)\'\'\'", page.text)
                     print(m)
                     if len(m) < 1:
                         print('No encontramos candidatos, saltamos')
@@ -148,6 +160,10 @@ def main():
                     if not ' ' in aliascandidate or len(aliascandidate) < 10: #https://www.wikidata.org/w/index.php?title=Q542337&type=revision&diff=1482744856&oldid=1400873196
                         print('Alias muy corto o unipalabra, saltamos')
                         continue
+                    if len(aliascandidate) > 50:
+                        print('Alias muy largo, saltamos')
+                        continue
+                    
                     if sum([len(x) > 2 and x in aliascandidate.lower() and 1 or 0 for x in page.title().lower().split()]) < 1:
                         # at least 1 word in title must be in alias candidate
                         print('No se encontro ninguna palabra del titulo en el alias, saltamos')
@@ -176,6 +192,7 @@ def main():
                     data = { 'aliases': aliases }
                     summary = "BOT - Adding 1 aliases (%s): %s" % (targetlang, aliascandidate)
                     print(summary.encode('utf-8'))
+                    cronstop()
                     try:
                         item.editEntity(data, summary=summary)
                     except:

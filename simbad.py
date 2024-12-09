@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2021 emijrp <emijrp@gmail.com>
+# Copyright (C) 2021-2024 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -114,7 +114,7 @@ constellations = [
     "Q10438", 
     "Q10567", 
     "Q10525", 
-]
+] # ahora no filtro por constelaciones, sino hago un random y ya
 
 def main():
     site = pywikibot.Site('wikidata', 'wikidata')
@@ -123,23 +123,56 @@ def main():
     if len(sys.argv) > 1:
         method = sys.argv[1]
     
-    targetlangs = ["es", "ast", "ca", "gl", "ext", "eu", "oc"]
+    #only langs with latin chars
+    targetlangs = ["es", "ast", "ca", "gl", "ext", "eu", "oc", "an", ]
+    targetlangs += ["fr", "de", "it", "pt", "pt-br", "nl", "ga", "pl", ]
+    targetlangs += ["eo", "io", "ia", "ie", "vo", ]
+    targetlangs += ["la", ]
+    targetlangs += ["en-gb", "en-ca", "en-us", ] #seguir metiendo de este labelslist https://www.wikidata.org/wiki/Q15110845
+    targetlangs += ["af", "co", "cy", "da", "de-at", "de-ch", "et", "fi", "frp", "fur"]
+    targetlangs += ["gd", "gsw", "guc", "guw", "gv", "hr", "hsb", "ht", "hu", "ilo", "is", "jam", "jv", "kaa", "kab", "ksh", "ku", "kw"]
+    
+    targetlangs += ["lb", "li", "lld", "lmo", "lt", "lv", ]
+    targetlangs += ["min", "ms", "mt", "mwl", ]
+    targetlangs += ["nap", "no", "nds", "nia", ]
+    targetlangs += ["pms", "rmy", "ro", "sc", "scn", "sco", "se", "sh", "sk", "sl", "sq", "srn", "stq", "su", "sv", "sw", ]
+    targetlangs += ["tk", "tl", "tr", "vec", "vi", "vls", "war", "yo", "zu"]
+    
+    targetlangs = list(set(targetlangs))
+    targetlangs.sort()
     if method == 'all' or method == 'method1':
         #method 1
         random.shuffle(constellations)
-        for constellation in constellations:
+        #for constellation in constellations:
+        for i in range(100000):
+            time.sleep(5)
+            random.shuffle(targetlangs)
             skip = ''
-            query = """
+            """query = 
             SELECT DISTINCT ?item
             WHERE {
                 #?item wdt:P31 wd:Q523.
                 ?item wdt:P3083 ?simbadid.
                 ?item wdt:P59 wd:%s.
-                OPTIONAL { ?item rdfs:label ?label filter(lang(?label) = "es") }
+                OPTIONAL { ?item rdfs:label ?label filter(lang(?label) = "ext") }
                 FILTER(!BOUND(?label))
                 SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
             }
-            """ % (constellation)
+             % (constellation)"""
+            query = """
+            SELECT DISTINCT ?item
+            WHERE {
+                SERVICE bd:sample {
+                    ?item wdt:P3083 ?simbadid.
+                    bd:serviceParam bd:sample.limit 10000 .
+                    bd:serviceParam bd:sample.sampleType "RANDOM" .
+                }
+                OPTIONAL { ?item rdfs:label ?label filter(lang(?label) = "%s") }
+                FILTER(!BOUND(?label))
+                SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+            }
+            #random%s
+            """ % (targetlangs[0], random.randint(1,1000000))
             
             url = 'https://query.wikidata.org/bigdata/namespace/wdq/sparql?query=%s' % (urllib.parse.quote(query))
             url = '%s&format=json' % (url)
@@ -178,11 +211,14 @@ def main():
                             print("Label (en) not found in claim P528")
                             continue
                 
+                maxlangsperedit = 12
                 addedlangs = []
                 for targetlang in targetlangs:
                     if not targetlang in labels:
                         labels[targetlang] = labels['en']
                         addedlangs.append(targetlang)
+                        if len(addedlangs) >= maxlangsperedit:
+                            break
                 
                 if len(addedlangs) < 1:
                     continue
