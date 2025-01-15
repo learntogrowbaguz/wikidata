@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2017-2021 emijrp <emijrp@gmail.com>
+# Copyright (C) 2017-2024 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -31,22 +31,40 @@ def getQueryCount(p='', q='', site=''):
        q and q.startswith('Q'):
         try:
             query = ""
-            if site:
-                query = """
-                    SELECT (COUNT(DISTINCT ?item) AS ?count)
-                    WHERE {
-                      ?item wdt:%s/wdt:P279* wd:%s.
-                      ?sitelink schema:about ?item .
-                      ?sitelink schema:isPartOf <https://%s/>.
-                    }
-                    """ % (p, q, site)
-            else:
-                query = """
-                    SELECT (COUNT(DISTINCT ?item) AS ?count)
-                    WHERE {
-                      ?item wdt:%s/wdt:P279* wd:%s.
-                    }
-                    """ % (p, q)
+            if p == "P105": #taxon (Q defines species, genus, etc)
+                if site:
+                    query = """
+                        SELECT (COUNT(DISTINCT ?item) AS ?count)
+                        WHERE {
+                          ?item wdt:%s wd:%s.
+                          ?sitelink schema:about ?item .
+                          ?sitelink schema:isPartOf <https://%s/>.
+                        }
+                        """ % (p, q, site)
+                else:
+                    query = """
+                        SELECT (COUNT(DISTINCT ?item) AS ?count)
+                        WHERE {
+                          ?item wdt:%s/wdt:P279* wd:%s.
+                        }
+                        """ % (p, q)
+            else: #P31 (instance of), P1435 (heritage sites)
+                if site:
+                    query = """
+                        SELECT (COUNT(DISTINCT ?item) AS ?count)
+                        WHERE {
+                          ?item wdt:%s/wdt:P279* wd:%s.
+                          ?sitelink schema:about ?item .
+                          ?sitelink schema:isPartOf <https://%s/>.
+                        }
+                        """ % (p, q, site)
+                else:
+                    query = """
+                        SELECT (COUNT(DISTINCT ?item) AS ?count)
+                        WHERE {
+                          ?item wdt:%s/wdt:P279* wd:%s.
+                        }
+                        """ % (p, q)
             url = 'https://query.wikidata.org/bigdata/namespace/wdq/sparql?query=%s' % (urllib.parse.quote(query))
             url = '%s&format=json' % (url)
             sparql = getURL(url=url, retry=False, timeout=120)
@@ -57,6 +75,7 @@ def getQueryCount(p='', q='', site=''):
     
     #useful when big query breaks, returning static values
     #https://www.wikidata.org/wiki/Wikidata:Statistics/Wikipedia#Type_of_content
+    """
     if p == "P31":
         if q == "Q5": #humans
             if site == "en.wikipedia.org":
@@ -71,7 +90,10 @@ def getQueryCount(p='', q='', site=''):
         elif q == "Q13442814": #scholarly article
             if site == "":
                 return "22574314"
-    
+        elif q == "Q11173": #chemical compound
+            if site == "":
+                return "1188724"
+    """
     #finally when no data is available, return empty string, and bot will keep the current value in the row
     return ''
 
@@ -97,7 +119,7 @@ def main():
         wdstatsurl = 'https://www.wikidata.org/w/api.php?action=query&meta=siteinfo&siprop=statistics&format=json'
         jsonwd = json.loads(getURL(url=wdstatsurl))
         wdarticles = jsonwd['query']['statistics']['articles']
-        wpenwdstats = "<!-- wpenwdstats -->As of {{subst:CURRENTMONTHNAME}} {{subst:CURRENTYEAR}}, {{Q|Q328}} has {{formatnum:%s}} articles<ref>{{cite web | url=https://en.wikipedia.org/wiki/Special:Statistics | title=Special:Statistics | publisher=English Wikipedia | date=%s | accessdate=%s | quote=Content pages: {{formatnum:%s}}}}</ref> and {{Q|Q2013}} includes {{formatnum:%s}} items.<ref>{{cite web|url=https://www.wikidata.org/wiki/Special:Statistics | title=Special:Statistics | publisher=Wikidata | date=%s | accessdate=%s | quote=Content pages: {{formatnum:%s}}}}</ref><!-- /wpenwdstats -->" % (wpenarticles, today, today, wpenarticles, wdarticles, today, today, wdarticles)
+        wpenwdstats = "<!-- wpenwdstats -->As of {{subst:CURRENTMONTHNAME}} {{subst:CURRENTYEAR}}, {{LinkedLabel|Q328}} has {{formatnum:%s}} articles<ref>{{cite web | url=https://en.wikipedia.org/wiki/Special:Statistics | title=Special:Statistics | publisher=English Wikipedia | date=%s | accessdate=%s | quote=Content pages: {{formatnum:%s}}}}</ref> and {{LinkedLabel|Q2013}} includes {{formatnum:%s}} items.<ref>{{cite web|url=https://www.wikidata.org/wiki/Special:Statistics | title=Special:Statistics | publisher=Wikidata | date=%s | accessdate=%s | quote=Content pages: {{formatnum:%s}}}}</ref><!-- /wpenwdstats -->" % (wpenarticles, today, today, wpenarticles, wdarticles, today, today, wdarticles)
         ahknewtext = re.sub(r'<!-- wpenwdstats -->.*?<!-- /wpenwdstats -->', wpenwdstats, ahknewtext)
         #biography
         
@@ -200,7 +222,7 @@ def main():
                     if not anchors:
                         anchors = '[[#%s|See table]]' % (sectiontitle)
                     summaryrow = """| [[#%s|%s]]
-| <li>[[#%s|%s]]
+| [[#%s|%s]]
 {{User:Emijrp/AHKsummaryrow|enwiki=%s|commons=%s|wikidata=%s|estimate=%s}}
 | %s
 |-""" % (sectiontitle, sectiontitle, sectiontitle, sectiontitle, summarydic[sectiontitle]['enwiki'],summarydic[sectiontitle]['commons'], summarydic[sectiontitle]['wikidata'], summarydic[sectiontitle]['estimate'], anchors)
@@ -215,7 +237,7 @@ def main():
                 anchors = '{{·}} '.join(['[[#%s|%s]]' % (anchor, anchor) for anchor in summarydic[sectiontitle]['anchors']])
                 if not anchors:
                     anchors = '[[#%s|See table]]' % (sectiontitle)
-                summaryrow = """| <li>[[#%s|%s]]
+                summaryrow = """| [[#%s|%s]]
 {{User:Emijrp/AHKsummaryrow|enwiki=%s|commons=%s|wikidata=%s|estimate=%s}}
 | %s
 |-""" % (sectiontitle, sectiontitle, summarydic[sectiontitle]['enwiki'], summarydic[sectiontitle]['commons'], summarydic[sectiontitle]['wikidata'], summarydic[sectiontitle]['estimate'], anchors)
@@ -228,7 +250,7 @@ def main():
             if summaryrow:
                 summaryrows.append(summaryrow)
         summarytotal = "{{User:Emijrp/AHKsummarytotal|enwiki=%s|commons=%s|wikidata=%s|estimate=%s}}" % (summarytotalenwiki, summarytotalcommons, summarytotalwikidata, summarytotalestimate)
-        summary = """<!-- summary -->{{User:Emijrp/AHKheader|id=summary table|column2 name=Subtopic}}
+        summary = """<!-- summary -->{{User:Emijrp/AHKsummaryheader}}
 |-
 %s
 %s

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright (C) 2017-2019 emijrp <emijrp@gmail.com>
+# Copyright (C) 2017-2022 emijrp <emijrp@gmail.com>
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -27,6 +27,10 @@ import urllib.parse
 import pywikibot
 from wikidatafun import *
 
+#mas adelante hacer queries para descripciones como (scientific article published on 01 January 1986)
+#el pubdate lo capturamos asi que da igual
+#https://query.wikidata.org/#SELECT%20%3FitemDescBase%20%28COUNT%28%3Fitem%29%20AS%20%3Fcount%29%0AWHERE%20%7B%0A%20%20SERVICE%20bd%3Asample%20%7B%0A%20%20%20%20%3Fitem%20wdt%3AP31%20%3Fp31%20.%0A%20%20%20%20bd%3AserviceParam%20bd%3Asample.limit%20100000%20.%0A%20%20%20%20bd%3AserviceParam%20bd%3Asample.sampleType%20%22RANDOM%22%20.%0A%20%20%7D%0A%20%20%23%3Fitem%20wdt%3AP21%20wd%3AQ6581097.%0A%20%20OPTIONAL%20%7B%20%3Fitem%20schema%3Adescription%20%3FitemDescBase.%20FILTER%28LANG%28%3FitemDescBase%29%20%3D%20%22en%22%29.%20%20%7D%0A%20%20FILTER%20%28BOUND%28%3FitemDescBase%29%29%0A%20%20OPTIONAL%20%7B%20%3Fitem%20schema%3Adescription%20%3FitemDescTarget.%20FILTER%28LANG%28%3FitemDescTarget%29%20%3D%20%22es%22%29.%20%20%7D%0A%20%20FILTER%20%28%21BOUND%28%3FitemDescTarget%29%29%0A%7D%0AGROUP%20BY%20%3FitemDescBase%0AORDER%20BY%20DESC%28%3Fcount%29%0ALIMIT%20100
+
 def bnyear(year=''):
     digits = { '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪', '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯' }
     year = str(year)
@@ -42,6 +46,9 @@ def generateTranslations(pubdate=''):
         'fr': ['article scientifique'], 
         'pt': ['artigo científico'], 
         'pt-br': ['artigo científico'],
+    }
+    fixthiswhenfound = {
+        'es': ['artículo científico'], 
     }
     translations = {
         'ar': 'مقالة علمية',
@@ -59,7 +66,7 @@ def generateTranslations(pubdate=''):
         'et': 'teaduslik artikkel',
         'fa': 'مقالهٔ علمی', 
         'fi': 'tieteellinen artikkeli',
-        'fr': 'article scientifique (publié %s)' % (pubdate.year),
+        'fr': 'article scientifique publié en %s' % (pubdate.year),
         'gl': 'artigo científico',
         'he': 'מאמר מדעי',
         'hu': 'tudományos cikk',
@@ -106,6 +113,10 @@ def generateTranslations(pubdate=''):
         'zh-sg': '%s年学术文章' % (pubdate.year),
         'zh-tw': '%s年學術文章' % (pubdate.year),
     }
+    translations = {
+        'es': 'artículo científico publicado en %s' % (pubdate.year),
+    }
+    #temp patch reduced to spanish, while split graph is solved
     return fixthiswhenfound, translations
 
 def main():
@@ -113,6 +124,7 @@ def main():
     repo = site.data_repository()
     querylimit = 10000
     skip = ''
+    
     #old query
     queries = [
     """
@@ -125,7 +137,14 @@ def main():
     OFFSET %s
     """ % (str(querylimit), str(offset)) for offset in range(10000000, 20000000, querylimit)
     ]
+    
     #random query
+    #el 2024-02-24 le cambio el:
+    #?item schema:description "scientific article"@en.
+    #por:
+    #?item schema:description ?itemDescriptionEN. FILTER(LANG(?itemDescriptionEN) = "en").
+    #FILTER(STRSTARTS(?itemDescriptionEN, "scientific article")).
+    #para que cubra cosas como https://www.wikidata.org/w/index.php?title=Q28140512&oldid=1049020376
     queries = [
     """
     SELECT ?item ?pubdate
@@ -136,12 +155,15 @@ def main():
             bd:serviceParam bd:sample.sampleType "RANDOM" .
         }
     ?item wdt:P577 ?pubdate.
-    ?item schema:description "scientific article"@en.
+    
+    ?item schema:description ?itemDescriptionEN. FILTER(LANG(?itemDescriptionEN) = "en").
+    FILTER(STRSTARTS(?itemDescriptionEN, "scientific article")).
+    
     OPTIONAL { ?item schema:description ?itemDescription. FILTER(LANG(?itemDescription) = "%s").  }
     FILTER (!BOUND(?itemDescription))
     }
     #random%s
-    """ % (str(querylimit+i), random.choice(list(generateTranslations(pubdate=datetime.datetime.strptime('2099-01-01', '%Y-%m-%d'))[1].keys())), random.randint(1,1000000)) for i in range(1, 10000)
+    """ % (str(querylimit+i), random.choice(list(generateTranslations(pubdate=datetime.datetime.strptime('2099-01-01', '%Y-%m-%d'))[1].keys())), random.randint(1,1000000)) for i in range(1, 100000)
     ]
     
     for query in queries:
@@ -166,51 +188,57 @@ def main():
                     skip = ''
             
             pubdate = dateutil.parser.parse(pubdate)
-            fixthiswhenfound, translations = generateTranslations(pubdate=pubdate)
-            item = pywikibot.ItemPage(repo, q)
-            try: #to detect Redirect because .isRedirectPage fails
-                item.get()
-            except:
-                print('Error while .get()')
-                continue
-            
-            descriptions = item.descriptions
-            #skip papers without english description
-            if not 'en' in descriptions or not 'scientific article' in descriptions['en']:
-                continue
-            
-            addedlangs = []
-            fixedlangs = []
-            for lang in translations.keys():
-                if lang in descriptions:
-                    if lang in fixthiswhenfound and \
-                       descriptions[lang] in fixthiswhenfound[lang]:
-                        descriptions[lang] = translations[lang]
-                        fixedlangs.append(lang)
-                else:
-                    descriptions[lang] = translations[lang]
-                    addedlangs.append(lang)
-            
-            if addedlangs or fixedlangs:
-                data = { 'descriptions': descriptions }
-                addedlangs.sort()
-                summary = 'BOT - '
-                if addedlangs:
-                    if fixedlangs:
-                        summary += 'Adding descriptions (%s languages): %s' % (len(addedlangs), ', '.join(addedlangs[:15]))
-                        summary += ' / Fixing descriptions (%s languages): %s' % (len(fixedlangs), ', '.join(fixedlangs))
-                    else:
-                        summary += 'Adding descriptions (%s languages): %s' % (len(addedlangs), ', '.join(addedlangs))
-                else:
-                    if fixedlangs:
-                        summary += 'Fixing descriptions (%s languages): %s' % (len(fixedlangs), ', '.join(fixedlangs))
-                print(summary)
-                try:
-                    item.editEntity(data, summary=summary)
+            for edit in ["add", "fix"]:
+                fixthiswhenfound, translations = generateTranslations(pubdate=pubdate)
+                if edit == "add":
+                    fixthiswhenfound = {}
+                
+                item = pywikibot.ItemPage(repo, q)
+                try: #to detect Redirect because .isRedirectPage fails
+                    item.get()
                 except:
-                    print('Error while saving')
+                    print('Error while .get()')
                     continue
-                #time.sleep(1)
+                
+                descriptions = item.descriptions
+                #skip papers without english description
+                if not 'en' in descriptions or not 'scientific article' in descriptions['en']:
+                    continue
+                
+                addedlangs = []
+                fixedlangs = []
+                for lang in translations.keys():
+                    if lang in descriptions:
+                        if lang in fixthiswhenfound and \
+                           descriptions[lang] in fixthiswhenfound[lang]:
+                            descriptions[lang] = translations[lang]
+                            fixedlangs.append(lang)
+                    else:
+                        descriptions[lang] = translations[lang]
+                        addedlangs.append(lang)
+                
+                if addedlangs or fixedlangs:
+                    data = { 'descriptions': descriptions }
+                    addedlangs.sort()
+                    fixedlangs.sort()
+                    summary = 'BOT - '
+                    if addedlangs:
+                        if fixedlangs:
+                            summary += 'Adding descriptions (%s languages): %s' % (len(addedlangs), ', '.join(addedlangs[:15]))
+                            summary += ' / Fixing descriptions (%s languages): %s' % (len(fixedlangs), ', '.join(fixedlangs))
+                        else:
+                            summary += 'Adding descriptions (%s languages): %s' % (len(addedlangs), ', '.join(addedlangs))
+                    else:
+                        if fixedlangs:
+                            summary += 'Fixing descriptions (%s languages): %s' % (len(fixedlangs), ', '.join(fixedlangs))
+                    print(summary)
+                    try:
+                        item.editEntity(data, summary=summary)
+                        time.sleep(600) #slowing down for a while because wikidata database issues
+                    except:
+                        print('Error while saving')
+                        continue
+                    #time.sleep(1)
     print("Finished successfully")
 
 if __name__ == '__main__':
